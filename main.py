@@ -17,20 +17,26 @@ def find_empty_blocks(board):
     for y, row in enumerate(board):
         for x, block in enumerate(row):
             if block == 0:
-                empty_blocks.append([x,y])
+                empty_blocks.append([y,x])
     return empty_blocks
 
+def MoveMerge(arr, left_to_right):
+    def merge_elements(elements):
+        merged = []
+        i = 0
+        while i < len(elements):
+            if i < len(elements) - 1 and elements[i] == elements[i + 1]:
+                merged.append(elements[i] * 2)
+                i += 2
+            else:
+                merged.append(elements[i])
+                i += 1
+        return merged
+    final_arr = arr
+    #TODO make code to sort arrays and merge based on direction
+    
+    return final_arr
 
-class Block:
-    # Constructor
-    def __init__(self, value, x, y, w, h, color = (255,255,255)):
-        self.rect = pygame.Rect(x, y, w, h)
-        self.txt = FONT.render(value, True, (0,0,0))
-    # Draw Method
-    def Draw(self):
-        coords = self.txt.get_rect()
-        coords.center = self.rect.center
-        SCREEN.blit(self.txt, coords)
 
 class TwentyFortyEight:
 
@@ -41,28 +47,64 @@ class TwentyFortyEight:
         [0,0,0,0]
     ]
 
+    STUCK_VERT = False
+    STUCK_HORI = False
     GAME_SCORE = 0
 
     def __init__(self):
-        self.board = self.GAME_BOARD
-        self.score = self.GAME_SCORE
         self.gen_blocks()
 
     def gen_blocks(self):
-        blanks = find_empty_blocks(self.board)
-        ids = random.sample(range(0,len(blanks)-1),2)
-        if debug:
-            print("Generating blocks at:",blanks[ids[0]],blanks[ids[1]])
-        for id in ids:
-            if random.random() < 0.9:
-                block_value = 2
+        try:
+            blanks = find_empty_blocks(self.GAME_BOARD)
+            if debug:
+                    print("Blanks:",blanks)
+            if len(blanks) > 2:
+                ids = random.sample(range(0,len(blanks)-1),2)
+                if debug:
+                    print("Generating blocks at:",blanks[ids[1]],blanks[ids[0]])
             else:
-                block_value = 4
-            self.board[blanks[id][0]][blanks[id][1]] = block_value
+                ids = [0]
+            for id in ids:
+                if random.random() < 0.9:
+                    block_value = 2
+                else:
+                    block_value = 4
+                self.GAME_BOARD[blanks[id][0]][blanks[id][1]] = block_value
+                return False
+        except:
+            return True
 
     def MoveVert(self, up):
-        if up:
-            pass
+        verticals = []
+        for x in range(4):
+            column = []
+            for y in range(4):
+                column.append(self.GAME_BOARD[x][y])
+            verticals.append(column)
+        if debug:
+            print("Board seen vertically:",verticals)
+        for x, column in enumerate(verticals):
+            final_column = MoveMerge(column,up)
+            if debug:
+                print("Column:",final_column)
+            for y,value in enumerate(final_column):
+                self.GAME_BOARD[x][y] = value
+                    
+    def MoveHori(self, left):
+        horizontals = []
+        for y in range(4):
+            row = []
+            for x in range(4):
+                row.append(self.GAME_BOARD[x][y])
+            horizontals.append(row)
+        if debug:
+            print("Board seen horizontally:",horizontals)
+        for x, row in enumerate(horizontals):
+            final_row = MoveMerge(row,left)
+            print("Row",final_row)
+            for y,value in enumerate(row):
+                self.GAME_BOARD[y][x] = value
 
 
 
@@ -70,10 +112,20 @@ class TwentyFortyEight:
         match direction:
             case 'up':
                 self.MoveVert(True)
+                self.STUCK_VERT = self.gen_blocks()
             case 'down':
                 self.MoveVert(False)
+                self.STUCK_VERT = self.gen_blocks()
+            case 'left':
+                self.MoveHori(True)
+                self.STUCK_HORI = self.gen_blocks()
+            case 'right':
+                self.MoveHori(False)
+                self.STUCK_HORI = self.gen_blocks()
             case _:
                 self.MoveVert(True)
+        print("Stuck Vertically?",self.STUCK_VERT)
+        print("Stuck Horizontally?",self.STUCK_HORI)
 
 def GetColor(value):
     match value:
@@ -100,7 +152,12 @@ def run():
 
     for tfe in tfes:
         if debug:
-            print(tfe.GAME_BOARD)
+            print("Current game board:",tfe.GAME_BOARD)
+
+    def draw_stats(id):
+        text = FONT.render("Game Over!",True,(0,0,0))
+        if tfes[id].STUCK_HORI and tfes[id].STUCK_VERT:
+            SCREEN.blit(text,(0,0))
 
     def draw_board(id):
         for x,row in enumerate(tfes[id].GAME_BOARD):
@@ -118,11 +175,21 @@ def run():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_w:
+                    tfes[0].move("up")
+                if event.key == pygame.K_s:
+                    tfes[0].move("down")
+                if event.key == pygame.K_a:
+                    tfes[0].move("left")
+                if event.key == pygame.K_d:
+                    tfes[0].move("right")
+                if event.key == pygame.K_g:
+                    tfes[0].gen_blocks()
         SCREEN.fill((250,248,239))
         draw_board(scores.index(max(scores)))
 
-
+        draw_stats(scores.index(max(scores)))
         clock.tick(30)
         pygame.display.update()
 run()
