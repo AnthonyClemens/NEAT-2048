@@ -1,4 +1,4 @@
-import pygame, random, sys, os, neat, visualize
+import pygame, random, sys, os, neat, visualize, time
 
 pygame.init()
 
@@ -15,15 +15,26 @@ pygame.display.set_caption("2048")
 
 class TwentyFortyEight:
 
-    GAME_BOARD = [[0 for x in range(4)] for y in range(4)]
+    GAME_BOARD = []
 
 
     STUCK_VERT = False
     STUCK_HORI = False
     GAME_SCORE = 0
+    STUCK = False
 
     def __init__(self):
+        self.GAME_BOARD = [[0 for x in range(4)] for y in range(4)]
         self.gen_blocks()
+        self.last_score_update_time = time.time()
+        self.last_score = 0
+    
+    def get_board(self):
+        board = []
+        for y, row in enumerate(self.GAME_BOARD):
+            for x, block in enumerate(row):
+                board.append(self.get_block(x,y))
+        return board
 
     def find_empty_blocks(self):
         empty_blocks = []
@@ -73,6 +84,8 @@ class TwentyFortyEight:
     
         return newArr
 
+    def get_score(self):
+        return self.GAME_SCORE
 
     def set_block(self, x, y, value):
         self.GAME_BOARD[y][x] = value
@@ -88,7 +101,7 @@ class TwentyFortyEight:
 
     def gen_blocks(self):
         try:
-            blanks = find_empty_blocks(self.GAME_BOARD)
+            blanks = self.find_empty_blocks()
             if debug:
                     print("Blanks:",blanks)
             if len(blanks) > 2:
@@ -137,7 +150,13 @@ class TwentyFortyEight:
             for x,value in enumerate(final_row):
                 self.set_block(x,y,value)
 
-
+    def update_time(self):
+        current_time = time.time()
+        if (current_time - self.last_score_update_time) > 1:
+            if self.GAME_SCORE == self.last_score:
+                self.STUCK = True
+            self.last_score_update_time = current_time
+            self.last_score = self.GAME_SCORE
 
     def move(self, direction):
         match direction:
@@ -210,13 +229,19 @@ def eval_genomes(genomes, config):
         genome.fitness = 0
 
     def draw_stats(id):
-        text = FONT.render("Game Over!",True,(0,0,0))
-        restart = FONT.render("Press \'r\' to restart",True,(0,0,0))
-        if tfes[id].STUCK_HORI and tfes[id].STUCK_VERT:
-            SCREEN.blit(text,(0,0))
-            SCREEN.blit(restart,(0,50))
-        score = FONT.render(f'SCORE: {str(tfes[0].GAME_SCORE)}',True,(0,0,0))
+        #text = FONT.render("Game Over!",True,(0,0,0))
+        view = FONT.render(f'Viewing Bot id: {id}',True,(0,0,0))
+        #if tfes[id].STUCK_HORI and tfes[id].STUCK_VERT:
+            #SCREEN.blit(text,(0,0))
+        SCREEN.blit(view,(0,50))
+        score = FONT.render(f'SCORE: {str(int(ge[id].fitness))}',True,(0,0,0))
         SCREEN.blit(score,(400,0))
+    
+    def draw_AI_stats():
+        text = FONT.render(f'Bots Alive:{len(tfes)}',True,(0,0,0))
+        text_2 = FONT.render(f'Generation:{p.generation+1}', True, (0, 0, 0))
+        SCREEN.blit(text,(430,50))
+        SCREEN.blit(text_2,(0,0))
 
     def draw_board(id):
         for y,column in enumerate(tfes[id].GAME_BOARD):
@@ -234,7 +259,7 @@ def eval_genomes(genomes, config):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
-            if event.type == pygame.KEYDOWN:
+            '''if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_w:
                     tfes[0].move("up")
                 if event.key == pygame.K_s:
@@ -245,20 +270,52 @@ def eval_genomes(genomes, config):
                     tfes[0].move("right")
                 if event.key == pygame.K_r:
                     tfes[0].clear_board()
+                    '''
                 
         SCREEN.fill((250,248,239))
+
         if len(tfes) == 0:
             break
 
-        for i, dinosaur in enumerate(tfes):
-            output = nets[i].activate()
-
-        draw_board(0)
-        draw_stats(0)
-        clock.tick(30)
+        for i, tfe in enumerate(tfes):
+            if tfe.STUCK:
+                ge[i].fitness -= 1
+                #print(ge[i].fitness)
+                remove(i)
+        
+        best_score = 0
+        best_player = 0
+        for i, tfe in enumerate(tfes):
+            #print(tfe.get_board())
+            output = nets[i].activate(tfe.get_board())
+            if output[0] > 0.5:
+                tfe.move("up")
+            if output[1] > 0.5:
+                tfe.move("down")
+            if output[2] > 0.5:
+                tfe.move("left")
+            if output[3] > 0.5:
+                tfe.move("right")
+            if tfe.get_score() > best_score:
+                best_score = tfe.get_score()
+                best_player = i
+            ge[i].fitness = len(tfe.find_empty_blocks()) + tfe.get_score()*.3
+            if len(tfe.find_empty_blocks()) < 4:
+                ge[i].fitness -= 20
+            else:
+                ge[i].fitness += 20
+            if debug:
+                print(f'Bot {i}\'s fitness {ge[i].fitness}')
+            tfe.update_time()
+        if len(tfes)>0:
+            draw_board(best_player)
+            draw_stats(best_player)
+            draw_AI_stats()
+        clock.tick(60)
         pygame.display.update()
 
 def run(config_file):
+    global p
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_file)
@@ -268,17 +325,15 @@ def run(config_file):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(5))
+    p.add_reporter(neat.Checkpointer(200))
 
-    winner = p.run(eval_genomes, 300)
+    winner = p.run(eval_genomes, 2000)
 
     print('\nBest genome:\n{!s}'.format(winner))
-    node_names = {-1: 'Game board', -2: 'Empty slots', 0: 'up', 1: 'down', 2: 'left', 3: 'right'}
-    visualize.draw_net(config, winner, True, node_names=node_names)
-    visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+    node_names = { 0: 'up', 1: 'down', 2: 'left', 3: 'right'}
+    visualize.draw_net(config, winner, True)
     visualize.plot_stats(stats, ylog=False, view=True)
     visualize.plot_species(stats, view=True)
-    p.run(eval_genomes, 10)
 
 
 if __name__ == "__main__":
