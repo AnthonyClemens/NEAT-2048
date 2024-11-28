@@ -17,35 +17,15 @@ def find_empty_blocks(board):
     for y, row in enumerate(board):
         for x, block in enumerate(row):
             if block == 0:
-                empty_blocks.append([y,x])
+                empty_blocks.append([x,y])
     return empty_blocks
 
-def MoveMerge(arr, left_to_right):
-    def merge_elements(elements):
-        merged = []
-        i = 0
-        while i < len(elements):
-            if i < len(elements) - 1 and elements[i] == elements[i + 1]:
-                merged.append(elements[i] * 2)
-                i += 2
-            else:
-                merged.append(elements[i])
-                i += 1
-        return merged
-    final_arr = arr
-    #TODO make code to sort arrays and merge based on direction
-    
-    return final_arr
 
 
 class TwentyFortyEight:
 
-    GAME_BOARD = [
-        [0,0,0,0],
-        [0,0,0,0],
-        [0,0,0,0],
-        [0,0,0,0]
-    ]
+    GAME_BOARD = [[0 for x in range(4)] for y in range(4)]
+
 
     STUCK_VERT = False
     STUCK_HORI = False
@@ -53,6 +33,59 @@ class TwentyFortyEight:
 
     def __init__(self):
         self.gen_blocks()
+
+    def MoveMerge(self, arr, left_to_right):
+        newArr = []
+        def RemoveZeros(zarr):
+            zdarr = []
+            for block in zarr:
+                if block != 0:
+                    zdarr.append(block)
+            return zdarr
+        newArr = RemoveZeros(arr)
+        if debug:
+            print("0's removed:",newArr)
+        if left_to_right:
+            i = 0
+            k = len(newArr)-1
+            while i < k:
+                if newArr[i] == newArr[i+1]:
+                    newArr[i] *= 2
+                    self.GAME_SCORE += newArr[i]
+                    newArr[i+1] = 0
+                    newArr = RemoveZeros(newArr)
+                    k = len(newArr)-1
+                i+=1
+            for i in range(len(arr)-len(newArr)):
+                newArr.append(0)
+        else:
+            i = len(newArr) - 1
+            while i > 0:
+                if newArr[i] == newArr[i - 1] and newArr[i] != 0:
+                    newArr[i] *= 2
+                    self.GAME_SCORE += newArr[i]
+                    newArr[i - 1] = 0
+                i -= 1
+            newArr = RemoveZeros(newArr)
+            while len(newArr) < len(arr):
+                newArr.insert(0, 0)
+        if debug:
+            print("final merge and move:",newArr)
+    
+        return newArr
+
+
+    def set_block(self, x, y, value):
+        self.GAME_BOARD[y][x] = value
+
+    def get_block(self, x, y):
+        return self.GAME_BOARD[y][x]
+
+    def clear_board(self):
+        self.GAME_BOARD = [[0 for x in range(4)] for y in range(4)]
+        self.STUCK_HORI = False
+        self.STUCK_VERT = False
+        self.GAME_SCORE = 0
 
     def gen_blocks(self):
         try:
@@ -62,7 +95,7 @@ class TwentyFortyEight:
             if len(blanks) > 2:
                 ids = random.sample(range(0,len(blanks)-1),2)
                 if debug:
-                    print("Generating blocks at:",blanks[ids[1]],blanks[ids[0]])
+                    print("Generating blocks at:",blanks[ids[0]],blanks[ids[1]])
             else:
                 ids = [0]
             for id in ids:
@@ -70,7 +103,7 @@ class TwentyFortyEight:
                     block_value = 2
                 else:
                     block_value = 4
-                self.GAME_BOARD[blanks[id][0]][blanks[id][1]] = block_value
+                self.set_block(blanks[id][0],blanks[id][1], block_value)
                 return False
         except:
             return True
@@ -80,31 +113,30 @@ class TwentyFortyEight:
         for x in range(4):
             column = []
             for y in range(4):
-                column.append(self.GAME_BOARD[x][y])
+                column.append(self.get_block(x,y))
             verticals.append(column)
         if debug:
             print("Board seen vertically:",verticals)
         for x, column in enumerate(verticals):
-            final_column = MoveMerge(column,up)
+            final_column = self.MoveMerge(column,up)
             if debug:
                 print("Column:",final_column)
             for y,value in enumerate(final_column):
-                self.GAME_BOARD[x][y] = value
+                self.set_block(x,y,value)
                     
     def MoveHori(self, left):
         horizontals = []
         for y in range(4):
             row = []
             for x in range(4):
-                row.append(self.GAME_BOARD[x][y])
+                row.append(self.get_block(x,y))
             horizontals.append(row)
         if debug:
             print("Board seen horizontally:",horizontals)
-        for x, row in enumerate(horizontals):
-            final_row = MoveMerge(row,left)
-            print("Row",final_row)
-            for y,value in enumerate(row):
-                self.GAME_BOARD[y][x] = value
+        for y, row in enumerate(horizontals):
+            final_row = self.MoveMerge(row,left)
+            for x,value in enumerate(final_row):
+                self.set_block(x,y,value)
 
 
 
@@ -139,8 +171,22 @@ def GetColor(value):
             return (245,149,99)
         case 32:
             return (246,124,95)
-        case _:
+        case 64:
+            return (246,94,59)
+        case 128:
+            return (237,207,114)
+        case 256:
+            return (237,204,97)
+        case 512:
+            return (237,200,80)
+        case 1024:
+            return (237,197,63)
+        case 2048:
+            return (237,194,46)
+        case 0:
             return (205,193,180)
+        case _:
+            return (0,255,0)
 
 
 
@@ -156,12 +202,16 @@ def run():
 
     def draw_stats(id):
         text = FONT.render("Game Over!",True,(0,0,0))
+        restart = FONT.render("Press \'r\' to restart",True,(0,0,0))
         if tfes[id].STUCK_HORI and tfes[id].STUCK_VERT:
             SCREEN.blit(text,(0,0))
+            SCREEN.blit(restart,(0,50))
+        score = FONT.render(f'SCORE: {str(tfes[0].GAME_SCORE)}',True,(0,0,0))
+        SCREEN.blit(score,(400,0))
 
     def draw_board(id):
-        for x,row in enumerate(tfes[id].GAME_BOARD):
-            for y,block in enumerate(row):
+        for y,column in enumerate(tfes[id].GAME_BOARD):
+            for x,block in enumerate(column):
                 text = FONT.render(str(block),True,(0,0,0))
                 rect = pygame.Rect(x*200,y*200+100,200,200)
                 coords = text.get_rect()
@@ -184,15 +234,19 @@ def run():
                     tfes[0].move("left")
                 if event.key == pygame.K_d:
                     tfes[0].move("right")
-                if event.key == pygame.K_g:
-                    tfes[0].gen_blocks()
+                if event.key == pygame.K_r:
+                    tfes[0].clear_board()
+                
         SCREEN.fill((250,248,239))
         draw_board(scores.index(max(scores)))
 
         draw_stats(scores.index(max(scores)))
         clock.tick(30)
         pygame.display.update()
-run()
+
+
+if __name__ == "__main__":
+    run()
 
 
 
