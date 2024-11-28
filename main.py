@@ -1,4 +1,4 @@
-import pygame, random, sys, os
+import pygame, random, sys, os, neat, visualize
 
 pygame.init()
 
@@ -6,20 +6,11 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 900
 GREY = (128,128,128)
 
-debug = True
+debug = False
 
 SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 FONT = pygame.font.Font(pygame.font.get_default_font(),48)
 pygame.display.set_caption("2048")
-
-def find_empty_blocks(board):
-    empty_blocks = []
-    for y, row in enumerate(board):
-        for x, block in enumerate(row):
-            if block == 0:
-                empty_blocks.append([x,y])
-    return empty_blocks
-
 
 
 class TwentyFortyEight:
@@ -33,6 +24,14 @@ class TwentyFortyEight:
 
     def __init__(self):
         self.gen_blocks()
+
+    def find_empty_blocks(self):
+        empty_blocks = []
+        for y, row in enumerate(self.GAME_BOARD):
+            for x, block in enumerate(row):
+                if block == 0:
+                    empty_blocks.append([x,y])
+        return empty_blocks
 
     def MoveMerge(self, arr, left_to_right):
         newArr = []
@@ -156,8 +155,9 @@ class TwentyFortyEight:
                 self.STUCK_HORI = self.gen_blocks()
             case _:
                 self.MoveVert(True)
-        print("Stuck Vertically?",self.STUCK_VERT)
-        print("Stuck Horizontally?",self.STUCK_HORI)
+        if debug:
+            print("Stuck Vertically?",self.STUCK_VERT)
+            print("Stuck Horizontally?",self.STUCK_HORI)
 
 def GetColor(value):
     match value:
@@ -188,17 +188,26 @@ def GetColor(value):
         case _:
             return (0,255,0)
 
+def remove(i):
+    tfes.pop(i)
+    ge.pop(i)
+    nets.pop(i)
 
 
-def run():
+def eval_genomes(genomes, config):
+    global tfes, ge, nets
     clock = pygame.time.Clock()
 
-    tfes = [TwentyFortyEight()]
-    scores = [0]
+    tfes = []
+    ge = []
+    nets = []
 
-    for tfe in tfes:
-        if debug:
-            print("Current game board:",tfe.GAME_BOARD)
+    for genome_id, genome in genomes:
+        tfes.append(TwentyFortyEight())
+        ge.append(genome)
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        nets.append(net)
+        genome.fitness = 0
 
     def draw_stats(id):
         text = FONT.render("Game Over!",True,(0,0,0))
@@ -238,15 +247,44 @@ def run():
                     tfes[0].clear_board()
                 
         SCREEN.fill((250,248,239))
-        draw_board(scores.index(max(scores)))
+        if len(tfes) == 0:
+            break
 
-        draw_stats(scores.index(max(scores)))
+        for i, dinosaur in enumerate(tfes):
+            output = nets[i].activate()
+
+        draw_board(0)
+        draw_stats(0)
         clock.tick(30)
         pygame.display.update()
 
+def run(config_file):
+    config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
+                         neat.DefaultSpeciesSet, neat.DefaultStagnation,
+                         config_file)
+
+    p = neat.Population(config)
+
+    p.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    p.add_reporter(stats)
+    p.add_reporter(neat.Checkpointer(5))
+
+    winner = p.run(eval_genomes, 300)
+
+    print('\nBest genome:\n{!s}'.format(winner))
+    node_names = {-1: 'Game board', -2: 'Empty slots', 0: 'up', 1: 'down', 2: 'left', 3: 'right'}
+    visualize.draw_net(config, winner, True, node_names=node_names)
+    visualize.draw_net(config, winner, True, node_names=node_names, prune_unused=True)
+    visualize.plot_stats(stats, ylog=False, view=True)
+    visualize.plot_species(stats, view=True)
+    p.run(eval_genomes, 10)
+
 
 if __name__ == "__main__":
-    run()
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, 'config.txt')
+    run(config_path)
 
 
 
