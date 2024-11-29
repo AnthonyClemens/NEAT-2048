@@ -11,7 +11,7 @@ def test_gen():
             print("setting block x,y,value:",x,y,2)
     tfe.set_block(1,2,0)
     tfe.set_block(2,3,0)
-    blank_blocks = main.find_empty_blocks(tfe.GAME_BOARD)
+    blank_blocks = tfe.find_empty_blocks()
     assert blank_blocks == [[1,2],[2,3]]
 
 def test_move_up():
