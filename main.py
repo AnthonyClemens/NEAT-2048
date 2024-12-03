@@ -1,4 +1,5 @@
 import pygame, random, sys, os, neat, visualize, time, math
+from checkpoint import Checkpointer
 
 pygame.init()
 
@@ -293,15 +294,14 @@ def eval_genomes(genomes, config):
             if tfe.get_score() > best_score:
                 best_score = tfe.get_score()
                 best_player = i
-                ge[i].fitness += 1
 
             if tfe.get_score() > scores[i]:
-                ge[i].fitness += (tfe.get_score()-scores[i])*.3
+                ge[i].fitness += (tfe.get_score()-scores[i])*.4
 
             if len(tfe.find_empty_blocks()) < 4:
-                ge[i].fitness -= 1
+                ge[i].fitness -= 2
             else:
-                ge[i].fitness += 2
+                ge[i].fitness += 3
 
             if debug:
                 print(f'Bot {i}\'s fitness {ge[i].fitness}')
@@ -317,16 +317,19 @@ def eval_genomes(genomes, config):
         clock.tick(120)
         pygame.display.update()
 
-def run(config_file):
+def run(config_file, checkpoint):
     global p
     config = neat.Config(neat.DefaultGenome, neat.DefaultReproduction,
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_file)
     p = neat.Population(config)
+    checkpointer = Checkpointer()
+    if checkpoint > -1:
+        p = checkpointer.restore_checkpoint("neat-checkpoint-"+str(checkpoint), update_config=config)
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer())
+    p.add_reporter(checkpointer)
     winner = p.run(eval_genomes, 20000)
 
     print('\nBest genome:\n{!s}'.format(winner))
@@ -340,11 +343,11 @@ if __name__ == "__main__":
     max_gen = -1
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, 'config.txt')
-    '''for file in os.listdir(local_dir):
+    for file in os.listdir(local_dir):
         if file.startswith("neat-checkpoint-"):
             if int(file.removeprefix("neat-checkpoint-")) > max_gen:
-                max_gen = int(file.removeprefix("neat-checkpoint-"))'''
-    run(config_path)
+                max_gen = int(file.removeprefix("neat-checkpoint-"))
+    run(config_path, max_gen)
 
 
 

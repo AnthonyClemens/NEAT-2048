@@ -1,7 +1,7 @@
 [NEAT]
 fitness_criterion     = max
 fitness_threshold     = 10000
-pop_size              = 100
+pop_size              = 200
 reset_on_extinction   = False
 
 [DefaultGenome]
@@ -40,8 +40,8 @@ feed_forward            = True
 initial_connection      = full
 
 # node add/remove rates
-node_add_prob           = 0.25
-node_delete_prob        = 0.25
+node_add_prob           = 0.1
+node_delete_prob        = 0.1
 
 # network parameters
 num_hidden              = 0
