@@ -3,10 +3,22 @@ from checkpoint import Checkpointer
 
 debug = False
 headless = False
+load_checkpoint = True
+number_gen = 20000
 if "-v" in sys.argv:
+    print("Debug Mode on, warning, very verbose!")
+    time.sleep(2)
     debug = True
 if "-h" in sys.argv:
+    print("Running in headless mode")
     headless = True
+if "-nl" in sys.argv:
+    print("Not loading checkpoint, starting new population")
+    load_checkpoint = True
+for i,arg in enumerate(sys.argv):
+    if arg == "-n" and i+1 < len(sys.argv):
+        number_gen = int(sys.argv[i+1])
+        print(f'Setting NEAT to {number_gen} generations')
 
 if not headless:
     import pygame
@@ -233,7 +245,7 @@ def eval_genomes(genomes, config):
     nets = []
     scores = []
     max_fitness = 0
-
+    max_block = 0
     for genome_id, genome in genomes:
         tfes.append(TwentyFortyEight())
         ge.append(genome)
@@ -284,6 +296,9 @@ def eval_genomes(genomes, config):
                 ge[i].fitness += max(tfe.get_board()) + (sum(tfe.get_board()) / len(tfe.get_board()))
                 if ge[i].fitness > max_fitness:
                     max_fitness = ge[i].fitness
+                for block in tfe.get_board():
+                    if block > max_block:
+                        max_block = block
                 remove(i)
 
         for i, tfe in enumerate(tfes):
@@ -311,7 +326,6 @@ def eval_genomes(genomes, config):
                 ge[i].fitness -= 2
             else:
                 ge[i].fitness += 3
-
             if debug:
                 print(f'Bot {i}\'s fitness {ge[i].fitness}')
             tfe.update_time()
@@ -325,6 +339,7 @@ def eval_genomes(genomes, config):
         if not headless:
             clock.tick(120)
             pygame.display.update()
+    print("Maximum block score attained:",max_block)
 
 def run(config_file, checkpoint):
     global p
@@ -333,19 +348,20 @@ def run(config_file, checkpoint):
                          config_file)
     p = neat.Population(config)
     checkpointer = Checkpointer()
-    if checkpoint > -1:
+    if checkpoint > -1 and load_checkpoint:
+        print("Loading checkpoint",str(checkpoint))
         p = checkpointer.restore_checkpoint("neat-checkpoint-"+str(checkpoint), update_config=config)
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
     p.add_reporter(checkpointer)
-    winner = p.run(eval_genomes, 20000)
+    winner = p.run(eval_genomes, number_gen)
 
     print('\nBest genome:\n{!s}'.format(winner))
     node_names = {-1: '[0,0]', -2: '[1,0]', -3: '[2,0]', -4: '[3,0]', -5: '[0,1]', -6: '[2,1]', -7: '[1,2]', -8: '[1,3]', -9: '[2,0]', -10: '[2,1]', -11: '[2,2]', -12: '[2,3]', -13: '[3,0]', -14: '[3,1]', -15: '[3,2]', -16: '[3,3]', 0: 'up', 1: 'down', 2: 'left', 3: 'right'}
     visualize.draw_net(config, winner, True, node_names=node_names)
-    visualize.plot_stats(stats, ylog=False, view=True)
-    visualize.plot_species(stats, view=True)
+    visualize.plot_stats(stats, ylog=False, view=[not headless])
+    visualize.plot_species(stats, view=[not headless])
 
 
 if __name__ == "__main__":
