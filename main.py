@@ -1,17 +1,25 @@
-import pygame, random, sys, os, neat, visualize, time, math
+import random, sys, os, neat, visualize, time, math
 from checkpoint import Checkpointer
 
-pygame.init()
-
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 900
-GREY = (128,128,128)
-
 debug = False
+headless = False
+if "-v" in sys.argv:
+    debug = True
+if "-h" in sys.argv:
+    headless = True
 
-SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-FONT = pygame.font.Font(pygame.font.get_default_font(),48)
-pygame.display.set_caption("2048")
+if not headless:
+    import pygame
+    pygame.init()
+    SCREEN_WIDTH = 800
+    SCREEN_HEIGHT = 900
+    GREY = (128,128,128)
+    SCREEN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    FONT = pygame.font.Font(pygame.font.get_default_font(),48)
+    pygame.display.set_caption("2048")
+    STUCK_TIME = 1
+else:
+    STUCK_TIME = 0.1
 
 
 class TwentyFortyEight:
@@ -153,7 +161,7 @@ class TwentyFortyEight:
 
     def update_time(self):
         current_time = time.time()
-        if (current_time - self.last_score_update_time) > 1:
+        if (current_time - self.last_score_update_time) > STUCK_TIME:
             if self.GAME_SCORE == self.last_score:
                 self.STUCK = True
             self.last_score_update_time = current_time
@@ -217,7 +225,8 @@ def remove(i):
 
 def eval_genomes(genomes, config):
     global tfes, ge, nets, scores
-    clock = pygame.time.Clock()
+    if not headless:
+        clock = pygame.time.Clock()
 
     tfes = []
     ge = []
@@ -260,11 +269,11 @@ def eval_genomes(genomes, config):
     while run:
         best_score = 0
         best_player = 0
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+        if not headless:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
 
         if len(tfes) == 0:
             print("Max fitness this generation was:",int(max_fitness))
@@ -308,14 +317,14 @@ def eval_genomes(genomes, config):
             tfe.update_time()
             scores[i] = tfe.get_score()
 
-        SCREEN.fill((250,248,239))
-
-        if len(tfes)>0:
+        if len(tfes)>0 and not headless:
+            SCREEN.fill((250,248,239))
             draw_board(best_player)
             draw_stats(best_player)
             draw_ai_stats()
-        clock.tick(120)
-        pygame.display.update()
+        if not headless:
+            clock.tick(120)
+            pygame.display.update()
 
 def run(config_file, checkpoint):
     global p
